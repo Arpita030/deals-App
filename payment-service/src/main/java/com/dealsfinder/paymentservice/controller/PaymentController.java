@@ -30,11 +30,11 @@ public class PaymentController {
     @PostMapping("/checkout")
     public ResponseEntity<String> checkout(@RequestBody PaymentRequestDto request) {
         if (request.getAmount() == null || new BigDecimal(request.getAmount()).compareTo(BigDecimal.ZERO) <= 0) {
-            return ResponseEntity.badRequest().body("❌ Invalid amount.");
+            return ResponseEntity.badRequest().body("Invalid amount.");
         }
 
         if (request.getPaymentMethodNonce() == null || request.getPaymentMethodNonce().isEmpty()) {
-            return ResponseEntity.badRequest().body("❌ Missing payment method nonce.");
+            return ResponseEntity.badRequest().body("Missing payment method nonce.");
         }
 
         TransactionRequest transactionRequest = new TransactionRequest()
@@ -59,13 +59,15 @@ public class PaymentController {
                     .dealId(request.getDealId())
                     .build();
 
-            paymentTransactionRepository.save(paymentRecord);
-
-            paymentService.processPayment(paymentRecord);
-
-            return ResponseEntity.ok("✅ Transaction successful. ID: " + transaction.getId());
+            try {
+                // Process payment (includes deal validation and saving)
+                paymentService.processPayment(paymentRecord);
+                return ResponseEntity.ok("Transaction successful. ID: " + transaction.getId());
+            } catch (RuntimeException e) {
+                return ResponseEntity.badRequest().body("Payment processing failed: " + e.getMessage());
+            }
         } else {
-            return ResponseEntity.status(500).body("❌ Error: " + result.getMessage());
+            return ResponseEntity.status(500).body("Error: " + result.getMessage());
         }
     }
 

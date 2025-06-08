@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 @Builder
 public class CashbackMessage {
     private String userEmail;
-    private String dealId;
+    private long dealId;
     private double cashbackAmount;
 }
 

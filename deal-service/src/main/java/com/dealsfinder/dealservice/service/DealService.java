@@ -43,6 +43,7 @@ public class DealService {
                     existingDeal.setCategory(dealDetails.getCategory());
                     existingDeal.setExpiryDate(dealDetails.getExpiryDate());
                     existingDeal.setActive(dealDetails.isActive());
+                    existingDeal.setPrice(dealDetails.getPrice());
                     return dealRepository.save(existingDeal);
                 })
                 .orElseThrow(() -> new RuntimeException("Deal not found with id: " + id));

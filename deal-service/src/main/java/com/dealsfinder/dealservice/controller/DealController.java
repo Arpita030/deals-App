@@ -28,17 +28,22 @@ public class DealController {
         return dealService.getAllDeals();
     }
 
-    @GetMapping("/{id}")
-    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-    public Optional<Deal> getDealById(@PathVariable Long id) {
-        return dealService.getDealById(id);
-    }
 
     @GetMapping("/category/{category}")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
     public List<Deal> getDealsByCategory(@PathVariable String category) {
         return dealService.getDealsByCategory(category);
     }
+
+
+    @GetMapping("/{id}")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public Deal getDealById(@PathVariable Long id) {
+        return dealService.getDealById(id)
+                .orElseThrow(() -> new RuntimeException("Deal not found with id: " + id));
+    }
+
+
 
     @GetMapping("/active")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")

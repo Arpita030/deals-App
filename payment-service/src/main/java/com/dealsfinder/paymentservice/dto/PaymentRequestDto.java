@@ -11,7 +11,7 @@ public class PaymentRequestDto {
     private String paymentMethodNonce;
     private String amount;
     private String userEmail;
-    private String dealId;
+    private long dealId;
 
 
 }

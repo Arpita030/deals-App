@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 @Data
 @AllArgsConstructor
 public class CashbackDTO {
-    private String dealId;
+    private long dealId;
     private double cashbackAmount;
     private LocalDateTime timestamp;
 }

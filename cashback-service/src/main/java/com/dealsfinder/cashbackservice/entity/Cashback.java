@@ -17,7 +17,7 @@ public class Cashback {
     private Long id;
 
     private String userEmail;
-    private String dealId;
+    private long dealId;
     private double cashbackAmount;
     private LocalDateTime timestamp;
 }

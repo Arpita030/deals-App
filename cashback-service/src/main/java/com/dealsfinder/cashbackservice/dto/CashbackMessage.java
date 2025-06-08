@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class CashbackMessage {
     private String userEmail;
-    private String dealId;
+    private long dealId;
     private double cashbackAmount;
 }
 

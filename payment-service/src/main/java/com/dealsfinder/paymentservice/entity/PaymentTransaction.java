@@ -16,7 +16,7 @@ public class PaymentTransaction {
     private String transactionId;
 
     private String userEmail;
-    private String dealId;
+    private long dealId;
     private String status;
     private String amount;
     private String paymentMethod;
