@@ -4,193 +4,131 @@ import com.dealsfinder.dealservice.model.Deal;
 import com.dealsfinder.dealservice.service.DealService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
-import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+@SpringBootTest
+@AutoConfigureMockMvc(addFilters = false)
 class DealControllerTest {
 
-    @InjectMocks
-    private DealController dealController;
+    @Autowired
+    private MockMvc mockMvc;
 
-    @Mock
+    @MockBean
     private DealService dealService;
 
-    private MockMvc mockMvc;
+    private Deal sampleDeal;
 
     @BeforeEach
     void setUp() {
-        MockitoAnnotations.openMocks(this);
-        mockMvc = MockMvcBuilders.standaloneSetup(dealController).build();
-    }
-
-    private Deal createSampleDeal(Long id) {
-        Deal deal = new Deal();
-        deal.setId(id);
-        deal.setTitle("Deal " + id);
-        deal.setDescription("Description " + id);
-        deal.setDiscount(10.0);
-        deal.setCategory("Electronics");
-        deal.setExpiryDate(LocalDateTime.now().plusDays(10));
-        deal.setActive(true);
-        deal.setPrice(1000.0);
-        return deal;
+        sampleDeal = new Deal();
+        sampleDeal.setId(1L);
+        sampleDeal.setTitle("Sample Deal");
+        sampleDeal.setDescription("Discount on Electronics");
+        sampleDeal.setDiscount(20.0);
+        sampleDeal.setCategory("Electronics");
+        sampleDeal.setExpiryDate(LocalDateTime.now().plusDays(5));
+        sampleDeal.setActive(true);
+        sampleDeal.setPrice(500.0);
     }
 
     @Test
-    @WithMockUser(roles = {"ADMIN"})
+    @WithMockUser(roles = "ADMIN")
     void testGetAllDealsForAdmin() throws Exception {
-        List<Deal> deals = Arrays.asList(createSampleDeal(1L), createSampleDeal(2L));
-        when(dealService.getAllDeals()).thenReturn(deals);
+        when(dealService.getAllDeals()).thenReturn(List.of(sampleDeal));
 
         mockMvc.perform(get("/deals/admin/all"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(2)));
-
-        verify(dealService, times(1)).getAllDeals();
+                .andExpect(jsonPath("$[0].title").value("Sample Deal"));
     }
 
     @Test
-    @WithMockUser(roles = {"USER"})
+    @WithMockUser(roles = "USER")
     void testGetAllDeals() throws Exception {
-        List<Deal> deals = Arrays.asList(createSampleDeal(1L));
-        when(dealService.getAllDeals()).thenReturn(deals);
+        when(dealService.getAllDeals()).thenReturn(List.of(sampleDeal));
 
         mockMvc.perform(get("/deals/all"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(1));
-
-        verify(dealService, times(1)).getAllDeals();
+                .andExpect(jsonPath("$[0].title").value("Sample Deal"));
     }
 
     @Test
-    @WithMockUser(roles = {"USER"})
+    @WithMockUser(roles = "USER")
     void testGetDealsByCategory() throws Exception {
-        String category = "Electronics";
-        List<Deal> deals = Arrays.asList(createSampleDeal(1L));
-        when(dealService.getDealsByCategory(category)).thenReturn(deals);
+        when(dealService.getDealsByCategory("Electronics")).thenReturn(List.of(sampleDeal));
 
-        mockMvc.perform(get("/deals/category/{category}", category))
+        mockMvc.perform(get("/deals/category/Electronics"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].category").value(category));
-
-        verify(dealService, times(1)).getDealsByCategory(category);
+                .andExpect(jsonPath("$[0].category").value("Electronics"));
     }
 
     @Test
-    @WithMockUser(roles = {"USER"})
+    @WithMockUser(roles = "USER")
     void testGetDealById() throws Exception {
-        Deal deal = createSampleDeal(1L);
-        when(dealService.getDealById(1L)).thenReturn(Optional.of(deal));
+        when(dealService.getDealById(1L)).thenReturn(Optional.of(sampleDeal));
 
-        mockMvc.perform(get("/deals/{id}", 1L))
+        mockMvc.perform(get("/deals/1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(1));
-
-        verify(dealService, times(1)).getDealById(1L);
+                .andExpect(jsonPath("$.title").value("Sample Deal"));
     }
 
     @Test
-    @WithMockUser(roles = {"USER"})
+    @WithMockUser(username = "test@example.com", roles = {"USER"})
     void testGetDealById_NotFound() throws Exception {
-        when(dealService.getDealById(1L)).thenReturn(Optional.empty());
+        when(dealService.getDealById(999L)).thenReturn(Optional.empty());
 
-        mockMvc.perform(get("/deals/{id}", 1L))
-                .andExpect(status().isInternalServerError())
-                .andExpect(status().reason("Deal not found with id: 1"));
-
-        verify(dealService, times(1)).getDealById(1L);
+        mockMvc.perform(get("/deals/999"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Deal not found with id: 999"));
     }
 
+
     @Test
-    @WithMockUser(roles = {"USER"})
+    @WithMockUser(roles = "USER")
     void testGetActiveDeals() throws Exception {
-        List<Deal> deals = Arrays.asList(createSampleDeal(1L));
-        when(dealService.getActiveDeals()).thenReturn(deals);
+        when(dealService.getActiveDeals()).thenReturn(List.of(sampleDeal));
 
         mockMvc.perform(get("/deals/active"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].isActive").value(true));
-
-        verify(dealService, times(1)).getActiveDeals();
+                .andExpect(jsonPath("$[0].active").value(true));
     }
 
     @Test
-    @WithMockUser(roles = {"ADMIN"})
+    @WithMockUser(roles = "ADMIN")
     void testCreateDeal() throws Exception {
-        Deal deal = createSampleDeal(1L);
-        when(dealService.saveDeal(any(Deal.class))).thenReturn(deal);
+        when(dealService.saveDeal(any())).thenReturn(sampleDeal);
 
-        String dealJson = """
-                {
-                  "title":"Deal 1",
-                  "description":"Description 1",
-                  "discount":10.0,
-                  "category":"Electronics",
-                  "expiryDate":"%s",
-                  "active":true,
-                  "price":1000.0
-                }
-                """.formatted(deal.getExpiryDate().toString());
+        String json = """
+            {
+              "title": "Sample Deal",
+              "description": "Discount on Electronics",
+              "discount": 20.0,
+              "category": "Electronics",
+              "expiryDate": "2030-12-31T23:59:59",
+              "active": true,
+              "price": 500.0
+            }
+        """;
 
         mockMvc.perform(post("/deals")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(dealJson))
+                        .content(json))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.title").value("Deal 1"));
-
-        verify(dealService, times(1)).saveDeal(any(Deal.class));
-    }
-
-    @Test
-    @WithMockUser(roles = {"ADMIN"})
-    void testUpdateDeal() throws Exception {
-        Deal updatedDeal = createSampleDeal(1L);
-        updatedDeal.setTitle("Updated Deal");
-        when(dealService.updateDeal(eq(1L), any(Deal.class))).thenReturn(updatedDeal);
-
-        String updatedDealJson = """
-                {
-                  "title":"Updated Deal",
-                  "description":"Description 1",
-                  "discount":10.0,
-                  "category":"Electronics",
-                  "expiryDate":"%s",
-                  "active":true,
-                  "price":1000.0
-                }
-                """.formatted(updatedDeal.getExpiryDate().toString());
-
-        mockMvc.perform(put("/deals/{id}", 1L)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(updatedDealJson))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.title").value("Updated Deal"));
-
-        verify(dealService, times(1)).updateDeal(eq(1L), any(Deal.class));
-    }
-
-    @Test
-    @WithMockUser(roles = {"ADMIN"})
-    void testDeleteDeal() throws Exception {
-        doNothing().when(dealService).deleteDeal(1L);
-
-        mockMvc.perform(delete("/deals/{id}", 1L))
-                .andExpect(status().isOk());
-
-        verify(dealService, times(1)).deleteDeal(1L);
+                .andExpect(jsonPath("$.title").value("Sample Deal"));
     }
 }

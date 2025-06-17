@@ -21,8 +21,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PaymentController {
 
-    private final BraintreeGateway gateway;
+    private final BraintreeGateway braintreeGateway;
     private final PaymentTransactionRepository paymentTransactionRepository;
+
 
     @Autowired
     private PaymentService paymentService;
@@ -44,7 +45,7 @@ public class PaymentController {
                 .submitForSettlement(true)
                 .done();
 
-        Result<Transaction> result = gateway.transaction().sale(transactionRequest);
+        Result<Transaction> result = braintreeGateway.transaction().sale(transactionRequest); // <- fix here
 
         if (result.isSuccess()) {
             Transaction transaction = result.getTarget();
@@ -60,7 +61,6 @@ public class PaymentController {
                     .build();
 
             try {
-                // Process payment (includes deal validation and saving)
                 paymentService.processPayment(paymentRecord);
                 return ResponseEntity.ok("Transaction successful. ID: " + transaction.getId());
             } catch (RuntimeException e) {

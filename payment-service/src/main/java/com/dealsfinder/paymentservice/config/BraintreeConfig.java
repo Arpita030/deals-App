@@ -2,6 +2,7 @@ package com.dealsfinder.paymentservice.config;
 
 import com.braintreegateway.BraintreeGateway;
 import com.braintreegateway.Environment;
+import com.braintreegateway.TransactionGateway;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,6 +21,12 @@ public class BraintreeConfig {
 
     @Value("${braintree.environment}")
     private String environment;
+
+    @Bean
+    public TransactionGateway transactionGateway(BraintreeGateway gateway) {
+        return gateway.transaction();
+    }
+
 
     @Bean
     public BraintreeGateway braintreeGateway() {

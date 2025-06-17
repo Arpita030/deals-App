@@ -1,173 +1,206 @@
 package com.dealsfinder.userservice.controller;
 
-import com.dealsfinder.userservice.exception.UserNotFoundException;
 import com.dealsfinder.userservice.model.Deal;
 import com.dealsfinder.userservice.model.User;
 import com.dealsfinder.userservice.repository.UserRepository;
+import com.dealsfinder.userservice.security.JwtFilter;
 import com.dealsfinder.userservice.service.UserService;
-
+import com.dealsfinder.userservice.util.JwtUtil;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.web.servlet.MockMvc;
 
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import java.io.IOException;
+import java.util.List;
+import java.util.Optional;
 
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-
-import java.util.*;
-
-import static org.junit.jupiter.api.Assertions.*;
+import static org.hamcrest.Matchers.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@ExtendWith(MockitoExtension.class)
+
+@SpringBootTest
+@AutoConfigureMockMvc(addFilters = false)
 class UserControllerTest {
 
-    @Mock
-    private UserRepository userRepository;
-
-    @Mock
-    private UserService userService;
-
-    @Mock
-    private Authentication authentication;
-
-    @InjectMocks
-    private UserController userController;
-
-    private User user;
+    @MockBean
+    private JwtFilter jwtFilter;
 
     @BeforeEach
-    void setup() {
-        user = new User();
-        user.setId("1");
-        user.setName("Arpita");
-        user.setEmail("arpita@example.com");
+    void setupJwtFilter() throws ServletException, IOException {
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            FilterChain chain = (FilterChain) args[2];
+            chain.doFilter((ServletRequest) args[0], (ServletResponse) args[1]);
+            return null;
+        }).when(jwtFilter).doFilter(any(), any(), any());
     }
 
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
+    private UserRepository userRepository;
+
+    @MockBean
+    private UserService userService;
+
+    private User sampleUser;
+
+    @BeforeEach
+    void setUp() {
+        sampleUser = new User();
+        sampleUser.setId("1");
+        sampleUser.setEmail("test@example.com");
+        sampleUser.setName("Test User");
+        sampleUser.setPassword("pass");
+        sampleUser.setRole("USER");
+    }
+
+
     @Test
-    void testGetAllDeals() {
-        String token = "token123";
+    @WithMockUser(roles = {"USER"})
+    void testGetAllDeals() throws Exception {
         Deal deal = new Deal();
-        deal.setId(101L);
-        when(userService.getAllDeals(token)).thenReturn(List.of(deal));
+        deal.setTitle("Test Deal");
 
-        List<Deal> deals = userController.getAllDeals("Bearer " + token);
-        assertEquals(1, deals.size());
-        assertEquals(101L, deals.get(0).getId());
+        when(userService.getAllDeals(anyString())).thenReturn(List.of(deal));
+
+        mockMvc.perform(get("/users/deals")
+                        .header("Authorization", "Bearer dummy-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].title").value("Test Deal"));
+
+        verify(userService, times(1)).getAllDeals("dummy-token");
     }
 
     @Test
-    void testGetProfile_userExists() {
-        when(authentication.getName()).thenReturn("arpita@example.com");
-        when(userRepository.findByEmail("arpita@example.com")).thenReturn(user);
+    @WithMockUser(roles = {"ADMIN"})
+    void testGetUserById_whenExists() throws Exception {
+        when(userRepository.findById("1")).thenReturn(Optional.of(sampleUser));
 
-        ResponseEntity<User> response = userController.getProfile(authentication);
-        assertEquals(200, response.getStatusCodeValue());
-        assertEquals("Arpita", response.getBody().getName());
+        mockMvc.perform(get("/users/id/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("test@example.com"));
     }
 
     @Test
-    void testGetProfile_userNotFound() {
-        when(authentication.getName()).thenReturn("unknown@example.com");
-        when(userRepository.findByEmail("unknown@example.com")).thenReturn(null);
+    @WithMockUser(roles = {"ADMIN"})
+    void testGetUserById_whenNotFound() throws Exception {
+        when(userRepository.findById("1")).thenReturn(Optional.empty());
 
-        assertThrows(UserNotFoundException.class, () -> userController.getProfile(authentication));
+        mockMvc.perform(get("/users/id/1"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("User with ID 1 not found"));
     }
 
     @Test
-    void testGetUserById_userFound() {
-        when(userRepository.findById("1")).thenReturn(Optional.of(user));
-
-        ResponseEntity<User> response = userController.getUser("1");
-        assertEquals(200, response.getStatusCodeValue());
-        assertEquals("Arpita", response.getBody().getName());
-    }
-
-    @Test
-    void testGetUserById_userNotFound() {
-        when(userRepository.findById("99")).thenReturn(Optional.empty());
-
-        assertThrows(UserNotFoundException.class, () -> userController.getUser("99"));
-    }
-
-    @Test
-    void testCreateUser_userDoesNotExist() {
-        when(userRepository.findByEmail("arpita@example.com")).thenReturn(null);
-        when(userRepository.save(user)).thenReturn(user);
-
-        ResponseEntity<?> response = userController.createUser(user);
-
-        assertEquals(200, response.getStatusCodeValue());
-        assertEquals(user, response.getBody());
-    }
-
-    @Test
-    void testCreateUser_userAlreadyExists() {
-        when(userRepository.findByEmail("arpita@example.com")).thenReturn(user);
-
-        ResponseEntity<?> response = userController.createUser(user);
-
-        assertEquals(400, response.getStatusCodeValue());
-        assertTrue(((Map<?, ?>) response.getBody()).get("error").toString().contains("already exists"));
-    }
-
-    @Test
-    void testGetUserByEmail_userFound() {
-        when(userRepository.findByEmail("arpita@example.com")).thenReturn(user);
-
-        ResponseEntity<User> response = userController.getUserByEmail("arpita@example.com");
-
-        assertEquals(200, response.getStatusCodeValue());
-        assertEquals("Arpita", response.getBody().getName());
-    }
-
-    @Test
-    void testGetUserByEmail_userNotFound() {
-        when(userRepository.findByEmail("notfound@example.com")).thenReturn(null);
-
-        assertThrows(UserNotFoundException.class, () -> userController.getUserByEmail("notfound@example.com"));
-    }
-
-    @Test
-    void testUpdateUser_userFound() {
-        User updated = new User();
-        updated.setName("Updated");
-        updated.setEmail("updated@example.com");
-
-        when(userRepository.findById("1")).thenReturn(Optional.of(user));
-        when(userRepository.save(any(User.class))).thenReturn(updated);
-
-        ResponseEntity<User> response = userController.updateUser("1", updated);
-        assertEquals(200, response.getStatusCodeValue());
-        assertEquals("Updated", response.getBody().getName());
-    }
-
-    @Test
-    void testUpdateUser_userNotFound() {
-        when(userRepository.findById("99")).thenReturn(Optional.empty());
-
-        assertThrows(UserNotFoundException.class, () -> userController.updateUser("99", user));
-    }
-
-    @Test
-    void testDeleteUser_userExists() {
+    @WithMockUser(roles = {"ADMIN"})
+    void testDeleteUser_whenExists() throws Exception {
         when(userRepository.existsById("1")).thenReturn(true);
         doNothing().when(userRepository).deleteById("1");
 
-        ResponseEntity<String> response = userController.deleteUser("1");
-
-        assertEquals(200, response.getStatusCodeValue());
-        assertEquals("User deleted successfully", response.getBody());
-        verify(userRepository).deleteById("1");
+        mockMvc.perform(delete("/users/1"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("User deleted successfully"));
     }
 
     @Test
-    void testDeleteUser_userNotFound() {
-        when(userRepository.existsById("99")).thenReturn(false);
+    @WithMockUser(roles = {"ADMIN"})
+    void testDeleteUser_whenNotExists() throws Exception {
+        when(userRepository.existsById("1")).thenReturn(false);
 
-        assertThrows(UserNotFoundException.class, () -> userController.deleteUser("99"));
+        mockMvc.perform(delete("/users/1"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("User with ID 1 not found"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"ADMIN"})
+    void testCreateUser_whenNewUser() throws Exception {
+        when(userRepository.findByEmail("test@example.com")).thenReturn(null);
+        when(userRepository.save(any(User.class))).thenReturn(sampleUser);
+
+        mockMvc.perform(post("/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\": \"test@example.com\", \"name\": \"Test User\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("test@example.com"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"ADMIN"})
+    void testCreateUser_whenEmailAlreadyExists() throws Exception {
+        when(userRepository.findByEmail("test@example.com")).thenReturn(sampleUser);
+
+        mockMvc.perform(post("/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\": \"test@example.com\", \"name\": \"Test User\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("User with this email already exists"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"ADMIN"})
+    void testGetUserByEmail_whenExists() throws Exception {
+        when(userRepository.findByEmail("test@example.com")).thenReturn(sampleUser);
+
+        mockMvc.perform(get("/users/email/test@example.com"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("test@example.com"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"ADMIN"})
+    void testGetUserByEmail_whenNotFound() throws Exception {
+        when(userRepository.findByEmail("test@example.com")).thenReturn(null);
+
+        mockMvc.perform(get("/users/email/test@example.com"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("User with email test@example.com not found"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"ADMIN"})
+    void testUpdateUser_whenExists() throws Exception {
+        when(userRepository.findById("1")).thenReturn(Optional.of(sampleUser));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User updated = invocation.getArgument(0);
+            updated.setName("Updated Name");
+            return updated;
+        });
+
+        mockMvc.perform(put("/users/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\": \"test@example.com\", \"name\": \"Updated Name\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Updated Name"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"ADMIN"})
+    void testUpdateUser_whenNotExists() throws Exception {
+        when(userRepository.findById("1")).thenReturn(Optional.empty());
+
+        mockMvc.perform(put("/users/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\": \"test@example.com\", \"name\": \"Updated Name\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("User with ID 1 not found"));
     }
 }

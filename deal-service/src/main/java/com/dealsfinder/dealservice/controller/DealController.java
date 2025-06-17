@@ -1,5 +1,6 @@
 package com.dealsfinder.dealservice.controller;
 
+import com.dealsfinder.dealservice.exception.DealNotFoundException;
 import com.dealsfinder.dealservice.model.Deal;
 import com.dealsfinder.dealservice.service.DealService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,9 +41,8 @@ public class DealController {
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
     public Deal getDealById(@PathVariable Long id) {
         return dealService.getDealById(id)
-                .orElseThrow(() -> new RuntimeException("Deal not found with id: " + id));
+                .orElseThrow(() -> new DealNotFoundException("Deal not found with id: " + id));
     }
-
 
 
     @GetMapping("/active")
