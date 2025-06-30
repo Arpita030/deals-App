@@ -12,4 +12,3 @@ public class CashbackMessage {
     private long dealId;
     private double cashbackAmount;
 }
-
